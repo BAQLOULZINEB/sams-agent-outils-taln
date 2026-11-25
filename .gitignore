@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Résultats régénérés à l'exécution du notebook
+resultats/
+dashboard/resultats/
+
+# Déploiement Vercel et secrets (jamais dans le dépôt)
+.vercel/
+.env
+.env.*
+
+# Fichiers intermédiaires LaTeX
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Système et éditeurs
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+.vscode/
+.idea/

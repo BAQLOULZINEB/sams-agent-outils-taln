@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deux architectures pour le même LLM</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" integrity="sha384-en/ztfPSRkGfME4KIm05joYXynqzUgbsG5nMrj/xEFAHXkeZfO3yMK8QQ+mP7p1/" crossorigin="anonymous"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      margin-bottom: 2rem;
+    }
+    
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .pulse-dot {
+      width: 12px;
+      height: 12px;
+      background: #22d3ee;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+    
+    .subtitle {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      margin-left: 1.75rem;
+    }
+    
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    
+    svg {
+      width: 100%;
+      min-width: 900px;
+      display: block;
+    }
+    
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    
+    .card h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    
+    .card ul {
+      list-style: none;
+      color: #94a3b8;
+      font-size: 0.75rem;
+    }
+    
+    .card li {
+      margin-bottom: 0.375rem;
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #475569;
+      font-size: 0.75rem;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 0.5rem;
+      margin-left: auto;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .toolbar-toggle {
+      background: transparent;
+      border: none;
+      color: #475569;
+      cursor: pointer;
+      font-size: 1.25rem;
+      line-height: 1;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      transition: color 0.2s, background 0.2s;
+    }
+    .toolbar-toggle:hover { color: #94a3b8; background: rgba(30, 41, 59, 0.5); }
+    .toolbar-actions {
+      display: none;
+      gap: 0.5rem;
+    }
+    .toolbar.expanded .toolbar-actions { display: flex; }
+    .toolbar-actions button {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 0.375rem 0.75rem;
+      border-radius: 0.375rem;
+      font-family: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .toolbar-actions button:hover {
+      background: rgba(51, 65, 85, 0.8);
+      color: white;
+      border-color: #475569;
+    }
+
+    @media print {
+      body { background: #020617; padding: 1rem; }
+      .toolbar { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="report-container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Deux architectures pour le même LLM</h1>
+        <div class="toolbar">
+          <div class="toolbar-actions">
+            <button onclick="copyAsImage(this)">Copier</button>
+            <button onclick="downloadPNG(this)">PNG</button>
+            <button onclick="downloadPDF(this)">PDF</button>
+          </div>
+          <button class="toolbar-toggle" onclick="this.parentElement.classList.toggle('expanded')" title="Exporter" aria-label="Exporter">⋯</button>
+        </div>
+      </div>
+      <p class="subtitle">Volet avancé du sujet : appel direct des outils contre planification en étapes.</p>
+    </div>
+    <div class="diagram-container">
+      <svg viewBox="0 0 1000 680" font-family="JetBrains Mono, monospace">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b" /></marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+<rect x="25" y="40" width="455" height="560" rx="12" fill="#a78bfa0d" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4"/><text x="37" y="58" fill="#a78bfa" font-size="10" font-weight="600">A · APPEL DIRECT (boucle ReAct)</text>
+<rect x="520" y="40" width="455" height="560" rx="12" fill="#22d3ee0d" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/><text x="532" y="58" fill="#22d3ee" font-size="10" font-weight="600">B · PLANIFIER PUIS EXÉCUTER</text>
+<path d="M 252 126 L 252 158" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<path d="M 252 238 L 252 270" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/><text x="298.0" y="258.0" fill="#94a3b8" font-size="8" text-anchor="middle">appel d'outil</text>
+<path d="M 252 330 L 252 362" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/><text x="288.0" y="350.0" fill="#94a3b8" font-size="8" text-anchor="middle">résultat</text>
+<path d="M 110 392 L 70 392 L 70 198 L 98 198" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+<text x="78" y="300" fill="#a78bfa" font-size="9" text-anchor="start">boucle</text><text x="78" y="312" fill="#a78bfa" font-size="9" text-anchor="start">≤ 5</text>
+<path d="M 252 422 L 252 462" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/><text x="296.0" y="446.0" fill="#94a3b8" font-size="8" text-anchor="middle">plus d'appel</text>
+<rect x="110" y="70" width="285" height="56" rx="6" fill="#0f172a"/>
+<rect x="110" y="70" width="285" height="56" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="252.5" y="90" fill="white" font-size="11" font-weight="600" text-anchor="middle">Message de l'utilisateur</text>
+<text x="252.5" y="106" fill="#94a3b8" font-size="9" text-anchor="middle">+ historique + état du dialogue</text>
+<rect x="100" y="158" width="305" height="80" rx="6" fill="#0f172a"/>
+<rect x="100" y="158" width="305" height="80" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="252.5" y="178" fill="white" font-size="11" font-weight="600" text-anchor="middle">Le LLM voit TOUS les outils utiles</text>
+<text x="252.5" y="194" fill="#94a3b8" font-size="9" text-anchor="middle">et choisit librement à chaque pas</text>
+<text x="252.5" y="207" fill="#94a3b8" font-size="9" text-anchor="middle">(filtrés par l'intention détectée)</text>
+<rect x="110" y="270" width="285" height="60" rx="6" fill="#0f172a"/>
+<rect x="110" y="270" width="285" height="60" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="252.5" y="290" fill="white" font-size="11" font-weight="600" text-anchor="middle">Exécution de l'outil</text>
+<text x="252.5" y="306" fill="#94a3b8" font-size="9" text-anchor="middle">passe par la garde de permissions</text>
+<rect x="110" y="362" width="285" height="60" rx="6" fill="#0f172a"/>
+<rect x="110" y="362" width="285" height="60" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="252.5" y="382" fill="white" font-size="11" font-weight="600" text-anchor="middle">Résultat renvoyé au LLM</text>
+<text x="252.5" y="398" fill="#94a3b8" font-size="9" text-anchor="middle">un document lu peut l'influencer</text>
+<rect x="110" y="462" width="285" height="56" rx="6" fill="#0f172a"/>
+<rect x="110" y="462" width="285" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="252.5" y="482" fill="white" font-size="11" font-weight="600" text-anchor="middle">Réponse finale</text>
+<text x="252.5" y="498" fill="#94a3b8" font-size="9" text-anchor="middle">texte en français</text>
+<text x="252" y="560" fill="#a78bfa" font-size="12" font-weight="700" text-anchor="middle">68,3 % des tâches · 4,7 s / tour</text>
+<text x="252" y="578" fill="#94a3b8" font-size="9" text-anchor="middle">138 appels au modèle · 11,5 % de questions inutiles</text>
+<path d="M 747 126 L 747 150" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<path d="M 747 210 L 747 238" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/><text x="785.0" y="228.0" fill="#94a3b8" font-size="8" text-anchor="middle">plan JSON</text>
+<path d="M 605 288 L 565 288 L 565 250 L 603 250" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+<text x="560" y="236" fill="#22d3ee" font-size="8.5" text-anchor="start">étape suivante</text>
+<path d="M 747 298 L 747 360" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/><text x="817.0" y="333.0" fill="#94a3b8" font-size="8" text-anchor="middle">toutes les étapes faites</text>
+<path d="M 747 420 L 747 462" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<rect x="605" y="70" width="285" height="56" rx="6" fill="#0f172a"/>
+<rect x="605" y="70" width="285" height="56" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="747.5" y="90" fill="white" font-size="11" font-weight="600" text-anchor="middle">Message de l'utilisateur</text>
+<text x="747.5" y="106" fill="#94a3b8" font-size="9" text-anchor="middle">+ historique + état du dialogue</text>
+<rect x="605" y="150" width="285" height="60" rx="6" fill="#0f172a"/>
+<rect x="605" y="150" width="285" height="60" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="747.5" y="170" fill="white" font-size="11" font-weight="600" text-anchor="middle">1. Le LLM écrit un PLAN</text>
+<text x="747.5" y="186" fill="#94a3b8" font-size="9" text-anchor="middle">{"etapes": [rechercher, calculer]}</text>
+<rect x="605" y="238" width="285" height="60" rx="6" fill="#0f172a"/>
+<rect x="605" y="238" width="285" height="60" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="747.5" y="258" fill="white" font-size="11" font-weight="600" text-anchor="middle">2. Étape k : UN seul outil exposé</text>
+<text x="747.5" y="274" fill="#94a3b8" font-size="9" text-anchor="middle">celui prévu par le plan</text>
+<rect x="605" y="360" width="285" height="60" rx="6" fill="#0f172a"/>
+<rect x="605" y="360" width="285" height="60" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="747.5" y="380" fill="white" font-size="11" font-weight="600" text-anchor="middle">3. Complétion en lecture seule</text>
+<text x="747.5" y="396" fill="#94a3b8" font-size="9" text-anchor="middle">jamais d'e-mail ni de réservation</text>
+<text x="747.5" y="409" fill="#94a3b8" font-size="9" text-anchor="middle">non prévus par le plan</text>
+<rect x="605" y="462" width="285" height="56" rx="6" fill="#0f172a"/>
+<rect x="605" y="462" width="285" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="747.5" y="482" fill="white" font-size="11" font-weight="600" text-anchor="middle">4. Réponse finale</text>
+<text x="747.5" y="498" fill="#94a3b8" font-size="9" text-anchor="middle">texte en français</text>
+<text x="747" y="560" fill="#22d3ee" font-size="12" font-weight="700" text-anchor="middle">83,3 % des tâches · 7,3 s / tour</text>
+<text x="747" y="578" fill="#94a3b8" font-size="9" text-anchor="middle">239 appels au modèle · 0 % de questions inutiles</text>
+<text x="500" y="628" fill="white" font-size="11" font-weight="600" text-anchor="middle">Même modèle (Qwen2.5-3B), mêmes 60 scénarios : B &gt; A de 15 points · McNemar p = 0,023</text>
+<text x="25" y="662" fill="white" font-size="10" font-weight="600">Légende</text>
+<rect x="105" y="653" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+<text x="127" y="662" fill="#94a3b8" font-size="8">Décision du LLM</text>
+<rect x="255" y="653" width="16" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+<text x="277" y="662" fill="#94a3b8" font-size="8">Outil</text>
+<rect x="405" y="653" width="16" height="10" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+<text x="427" y="662" fill="#94a3b8" font-size="8">Garde-fou</text>
+<rect x="555" y="653" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+<text x="577" y="662" fill="#94a3b8" font-size="8">Sortie</text>
+<line x1="705" y1="658" x2="721" y2="658" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,3"/>
+<text x="727" y="662" fill="#94a3b8" font-size="8">Boucle</text>
+      </svg>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>A · Appel direct</h3></div>
+        <ul>
+          <li>• Souple : choisit l'outil au fil de l'eau</li>
+          <li>• Moins d'appels au modèle, plus rapide</li>
+          <li>• Défaut : questions inutiles (7 tours ratés)</li>
+          <li>• Un document lu peut orienter la suite</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>B · Plan puis exécution</h3></div>
+        <ul>
+          <li>• Oblige à prévoir toutes les étapes</li>
+          <li>• Un outil par étape : moins de confusion</li>
+          <li>• Défaut : mauvais outil si le plan est faux</li>
+          <li>• Sécurité : rien d'imprévu après lecture</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Lien avec le cours</h3></div>
+        <ul>
+          <li>• Modèle de langue : prédit le prochain token</li>
+          <li>• Le JSON du plan est un texte généré</li>
+          <li>• Décodage glouton (τ = 0) : reproductible</li>
+          <li>• Contrainte de sortie = contrôle de la génération</li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer">Projet TALN n°10 · Agent conversationnel à outils · EMSI Rabat · 5IA-SD · 2026/2027</p>
+  </div>
+
+  <script>
+    async function copyAsImage(btn) {
+      const orig = btn.textContent;
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        btn.textContent = '✓ Copied!';
+      } catch (e) {
+        btn.textContent = '✗ Failed';
+      }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+
+    async function downloadPNG(btn) {
+      const orig = btn.textContent;
+      btn.textContent = '⏳ ...';
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const link = document.createElement('a');
+        link.download = 'diagramme-2-architectures-A-B.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        btn.textContent = '✓ Done!';
+      } catch (e) {
+        btn.textContent = '✗ Failed';
+      }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+
+    async function downloadPDF(btn) {
+      const orig = btn.textContent;
+      btn.textContent = '⏳ ...';
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const orientation = canvas.width > canvas.height ? 'landscape' : 'portrait';
+        const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width, canvas.height], hotfixes: ['px_scaling'] });
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save('diagramme-2-architectures-A-B.pdf');
+        btn.textContent = '✓ Done!';
+      } catch (e) {
+        btn.textContent = '✗ Failed';
+      }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+  </script>
+</body>
+</html>

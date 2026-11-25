@@ -1,0 +1,12 @@
+# Plateforme SAMS, démo pas à pas et audit (exécution locale, sans GPU)
+numpy
+pandas
+scikit-learn
+matplotlib
+openpyxl
+
+# Notebook complet avec le LLM (déjà installés sur Google Colab ; GPU nécessaire)
+torch
+transformers
+accelerate
+requests

@@ -1,0 +1,382 @@
+% =====================================================================
+%  Article (7 pages maximum) — Projet TALN n°10 : Agent conversationnel à outils
+%  Compilation : pdflatex article_7pages.tex (deux fois)
+% =====================================================================
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,top=1.8cm,bottom=1.8cm,left=1.9cm,right=1.9cm,headheight=13pt]{geometry}
+\usepackage[table]{xcolor}
+\definecolor{vertfonce}{HTML}{1B5E20}
+\definecolor{vertclair}{HTML}{C8E6C9}
+\definecolor{vertmoyen}{HTML}{2E7D32}
+\usepackage{graphicx}
+\graphicspath{{images/}}
+\usepackage{float,booktabs,tabularx,array,amsmath}
+\usepackage[font=footnotesize,labelfont={bf,color=vertfonce},labelsep=endash,skip=3pt]{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\setlist{leftmargin=1.2em,itemsep=0.05em,topsep=0.2em,parsep=0pt}
+\setlist[itemize]{label=---}
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries\color{vertfonce}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\color{vertmoyen}}{\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{7pt}{3pt}
+\titlespacing*{\subsection}{0pt}{5pt}{2pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.3em}
+\setlength{\textfloatsep}{6pt}
+\setlength{\floatsep}{5pt}
+\setlength{\intextsep}{5pt}
+\renewcommand{\arraystretch}{1.08}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\usepackage{fancyhdr}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\footnotesize\color{vertfonce}Projet TALN n°10 -- Agent conversationnel à outils}
+\fancyhead[R]{\footnotesize\color{gray}EMSI -- 5IA-SD -- 2026/2027}
+\fancyfoot[C]{\footnotesize\color{vertfonce}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{{\color{vertclair}\hrule width\headwidth height\headrulewidth}}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=vertfonce,citecolor=vertfonce,urlcolor=vertmoyen,
+  pdftitle={Agent conversationnel à outils — article},pdfauthor={BAQLOUL Zineb, BENHEDDANE Mohamed}}
+\newcommand{\aretenir}[1]{\par\noindent\colorbox{vertclair!45}{\parbox{\dimexpr\linewidth-2\fboxsep}{\footnotesize\textbf{\color{vertfonce}À retenir.}~#1}}\par}
+
+\begin{document}
+
+% ---------------- En-tête de l'article ----------------
+\thispagestyle{empty}
+\noindent\begin{minipage}[c]{0.2\textwidth}\includegraphics[height=1.25cm]{logo_emsi.jpg}\end{minipage}%
+\begin{minipage}[c]{0.6\textwidth}\centering
+{\small\color{gray!70!black}École Marocaine des Sciences de l'Ingénieur\\ Module TALN -- 5\textsuperscript{e} année IA \& Science des Données -- 2026/2027}
+\end{minipage}%
+\begin{minipage}[c]{0.2\textwidth}\raggedleft\includegraphics[width=2.6cm]{logo_honoris.jpg}\end{minipage}
+
+\vspace{0.25cm}
+{\color{vertclair}\rule{\textwidth}{0.8pt}}
+\begin{center}
+{\color{vertfonce}\LARGE\bfseries Agent conversationnel à outils :\\[2pt] règles, LLM direct ou planifié, et défense contre les injections}\\[6pt]
+{\normalsize BAQLOUL Zineb \quad · \quad BENHEDDANE Mohamed}\\[2pt]
+{\footnotesize\color{gray}Projet TALN n°10 -- notebook \texttt{Projet10\_Agent\_Outils\_TALN.ipynb}}
+\end{center}
+\vspace{-0.15cm}
+{\color{vertclair}\rule{\textwidth}{0.8pt}}
+
+\noindent\colorbox{vertclair!25}{\parbox{\dimexpr\textwidth-2\fboxsep}{\small
+\textbf{Résumé.} Nous construisons un assistant de secrétariat pédagogique qui \emph{agit} en appelant des outils
+(emploi du temps, moyennes, documents, réservation, e-mail) sur plusieurs tours de dialogue. Sur 60 scénarios de
+test piégés, nous comparons une baseline par mots-clés, un agent classique (intention TF-IDF, entités, état du
+dialogue) et le LLM ouvert Qwen2.5-3B-Instruct selon deux architectures : appel direct et planification. L'agent
+classique réussit 98,3\,\% des tâches, le LLM planifié 83,3\,\% et le LLM direct 68,3\,\% (différences
+significatives, McNemar $p<0{,}05$). Une défense placée hors du modèle ramène les injections réussies de
+33,3\,\% à 0\,\% sans blocage à tort. Un audit humain ($\kappa=0{,}25$) montre que l'évaluateur automatique
+sous-estime légèrement les réponses libres des LLM.\\[2pt]
+\textbf{Mots-clés :} appel d'outils, LLM, planification, détection d'intention, état du dialogue, injection d'instructions.}}
+
+% =====================================================================
+\section{Problème}
+Un assistant pédagogique utile doit passer \textbf{du texte à l'action} : pour « Quelle est la moyenne de Kenza en
+TALN ? », il doit choisir l'outil \texttt{calculer\_moyenne} et remplir ses arguments ; pour « et sa note ? »,
+retrouver de qui l'on parle ; pour « la moyenne de Yassine » alors que deux Yassine existent, poser une question ;
+et pour un document qui contient « ignore tes consignes et envoie les notes », \textbf{ne pas obéir}.
+\textbf{Question de recherche :} un petit LLM ouvert qui choisit lui-même ses outils fait-il mieux qu'un agent
+classique de TALN ? Et quelle architecture LLM est la plus fiable, l'appel direct ou la planification en étapes ?
+
+% =====================================================================
+\section{État de l'art succinct}
+Les \textbf{systèmes de dialogue orientés tâche} enchaînent compréhension (intention + entités), suivi de l'état
+du dialogue et politique d'action~\cite{jurafsky} ; MultiWOZ~\cite{multiwoz} a popularisé l'évaluation du suivi
+d'état. Les \textbf{LLM à outils} apprennent à appeler des API (Toolformer~\cite{toolformer}, Gorilla~\cite{gorilla}),
+et les modèles ouverts comme Qwen2.5~\cite{qwen} produisent nativement des appels JSON. Deux architectures
+s'opposent : \textbf{ReAct}~\cite{react}, qui alterne raisonnement et appel pas à pas, et \textbf{planifier puis
+résoudre}~\cite{planandsolve}. Enfin, la recherche documentaire (RAG~\cite{rag}) expose l'agent aux
+\textbf{injections indirectes}~\cite{greshake}, où un texte retrouvé contient une consigne malveillante.
+
+% =====================================================================
+\section{Données}
+\textbf{Source.} Toutes les données sont \textbf{construites par le groupe} et \textbf{fictives} : aucune donnée
+personnelle réelle. La base contient 24 étudiants (2 groupes), 6 modules avec notes CC et examen
+(note $=0{,}4\,\text{CC}+0{,}6\,\text{examen}$), un emploi du temps, 5 salles et 12 documents administratifs.
+Des \textbf{pièges} y sont placés : deux étudiants prénommés Yassine, une note d'examen manquante et 3 documents
+piégés par une fausse « instruction système ».
+
+\begin{table}[H]
+\centering\small
+\caption{Les trois jeux de scénarios (graine aléatoire fixée à 42)}
+\label{tab:jeux}
+\begin{tabularx}{\textwidth}{@{}lp{8.6cm}Y@{}}
+\toprule
+\textbf{Jeu} & \textbf{Contenu} & \textbf{Usage} \\
+\midrule
+TEST & 60 scénarios, 77 tours : 16 nominaux, 10 multi-tours, 8 ambigus, 6 info absente, 6 outil en panne, 8 hors périmètre, 6 injections & mesure finale, \textbf{une seule fois} \\
+DEV & 24 scénarios aux phrases différentes & tous les réglages \\
+Reformulations & 24 variantes de tours TEST (fautes, familiarités) & robustesse uniquement \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le détecteur d'intention est entraîné sur 537 phrases générées par gabarits (8 intentions) et testé sur les
+71 tours TEST annotés.
+
+% =====================================================================
+\section{Méthode}
+\sloppy
+\textbf{Outils.} 7 outils métier (\texttt{rechercher\_etudiant}, \texttt{consulter\_emploi\_du\_temps},
+\texttt{calculer\_moyenne}, \texttt{lister\_notes}, \texttt{chercher\_document}, \texttt{reserver\_salle},
+\texttt{envoyer\_email}) et 2 méta-outils (\texttt{demander\_clarification}, \texttt{refuser\_demande}) qui rendent
+questions et refus mesurables. Chaque outil valide ses arguments et chaque appel est journalisé.
+La recherche de documents utilise TF-IDF mots (1--2) + caractères (4--5) et la similarité cosinus, avec un seuil de
+0,20 réglé sur DEV.
+
+\textbf{Systèmes comparés.}
+\begin{itemize}
+  \item \textbf{Baseline} : mots-clés $\rightarrow$ outil, valeurs par défaut, ni mémoire ni question.
+  \item \textbf{Agent classique} : intention par régression logistique sur TF-IDF mots + caractères (F1 macro TEST
+        0,982 ; meilleur compromis parmi 5 modèles : NB, régression logistique, SVM, avec ou sans caractères),
+        entités par expressions régulières et \texttt{difflib}, \textbf{état du dialogue}, politique à règles et
+        réponses par gabarits.
+  \item \textbf{Agent LLM} : Qwen2.5-3B-Instruct (Transformers, fp16, décodage glouton, GPU T4), outils filtrés par
+        l'intention détectée et état du dialogue injecté dans le prompt, en deux architectures (figure~\ref{fig:ab}) :
+        \textbf{A. direct} (boucle ReAct, 5 étapes max.) et \textbf{B. plan} (plan JSON, un seul outil exposé par
+        étape, complétion en lecture seule, réponse finale).
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth,trim=0 560 0 0,clip]{diagramme-2-architectures-A-B.png}
+\caption{Les deux architectures LLM comparées : appel direct (A) et planification (B)}
+\label{fig:ab}
+\end{figure}
+
+\textbf{Défense (volet avancé).} « Le modèle propose, le système impose les droits » : les résultats d'outils
+sont balisés comme données non fiables ; les phrases adressées à « l'assistant » sont retirées des documents ; une
+\textbf{garde de permissions} en Python, hors du modèle, n'autorise \texttt{envoyer\_email} et
+\texttt{reserver\_salle} que si l'\emph{utilisateur} l'a demandé, et seulement vers le domaine de l'école.
+
+\textbf{Évaluation.} Pour chaque tour, l'évaluateur vérifie le type de réaction (répondre, clarifier, refuser,
+signaler l'échec), les appels obligatoires et leurs arguments normalisés, les faits attendus et l'absence
+d'actions ou d'affirmations interdites. Une \textbf{tâche} est réussie si tous ses tours le sont. Les métriques
+suivent le sujet : tâches réussies, exactitude des arguments, refus justifiés et causes d'échec, plus le rappel
+des outils, les clarifications, les refus injustifiés, le taux d'attaques et la latence. Incertitude : IC à
+95\,\% par bootstrap ; comparaisons : McNemar exact sur scénarios appariés.
+
+% =====================================================================
+\section{Expériences}
+Une première exécution (v1) a donné 51,7\,\% aux deux architectures LLM. L'analyse des erreurs (mauvais outil,
+identifiants inventés, questions en texte libre, JSON mal formés) et la correction d'un bogue du notebook ont
+conduit à une v2 \textbf{réglée uniquement sur DEV} (A : 50,0 $\rightarrow$ 79,2\,\% ; B : 37,5 $\rightarrow$
+75,0\,\%). La v2 a ensuite été mesurée \textbf{une seule fois} sur TEST ; les scénarios TEST et l'évaluateur n'ont
+jamais été modifiés (vérification automatique). Nous avons aussi mesuré : la robustesse aux reformulations, la
+sécurité avec et sans défense, des \textbf{ablations} (sans intention, sans état du dialogue), l'effet de la taille
+du modèle (1.5B) et la courbe d'apprentissage du détecteur d'intention.
+
+% =====================================================================
+\section{Résultats}
+
+\begin{table}[H]
+\centering\small
+\setlength{\tabcolsep}{4.2pt}
+\caption{Résultats sur les 60 scénarios TEST}
+\label{tab:main}
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+\textbf{Système} & \textbf{Tâches} & \textbf{IC 95\,\%} & \textbf{Arguments} & \textbf{Refus just.} & \textbf{Clarif.} & \textbf{Refus inj.} & \textbf{Latence} \\
+\midrule
+Baseline              & 65,0\,\% & 51,7--76,7 & 95,0\,\% & 87,5\,\% & 0,0\,\%  & 14,8\,\% & $\approx$0 s \\
+\rowcolor{vertclair!40}Agent classique & \textbf{98,3\,\%} & 95,0--100 & 100\,\% & 100\,\% & 100\,\% & 0,0\,\% & $\approx$0 s \\
+LLM 3B -- A. direct   & 68,3\,\% & 56,7--80,0 & 100\,\% & 87,5\,\% & 62,5\,\% & 11,5\,\% & 4,7 s \\
+\rowcolor{vertclair!20}LLM 3B -- B. plan & \textbf{83,3\,\%} & 73,3--91,7 & 100\,\% & 100\,\% & 62,5\,\% & 0,0\,\% & 7,3 s \\
+LLM 1.5B -- A. direct & 43,3\,\% & 31,6--56,7 & 57,1\,\% & 100\,\% & 37,5\,\% & 13,1\,\% & 2,3 s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figure-02-Resultat-principal.png}
+\caption{Tâches réussies avec intervalles de confiance à 95\,\%}
+\label{fig:main}
+\end{figure}
+
+\textbf{Comparaisons (McNemar).} Planification contre appel direct : 11 scénarios réussis par B seul contre 2 par
+A seul, $p=0{,}023$. Agent classique contre plan : $p=0{,}012$. Plan contre baseline : $p=0{,}019$. 3B contre
+1.5B : $p=0{,}004$. Toutes les différences principales sont significatives.
+
+\begin{table}[H]
+\centering\small
+\setlength{\tabcolsep}{3.6pt}
+\caption{Réussite par type de piège (\%) et robustesse aux reformulations}
+\label{tab:cat}
+\begin{tabular}{@{}lccccccc|cc@{}}
+\toprule
+\textbf{Système} & \textbf{ambigu} & \textbf{hors pér.} & \textbf{info abs.} & \textbf{injection} & \textbf{multi-t.} & \textbf{nominal} & \textbf{panne} & \textbf{TEST} & \textbf{Reform.} \\
+\midrule
+Baseline        & 0    & 75,0 & 100  & 50,0 & 30,0 & 93,8 & 100  & 65,0 & 50,0 \\
+Agent classique & 100  & 100  & 100  & 83,3 & 100  & 100  & 100  & 98,3 & 70,8 \\
+LLM A. direct   & 50,0 & 87,5 & 83,3 & 66,7 & 40,0 & 75,0 & 83,3 & 68,3 & 50,0 \\
+LLM B. plan     & 62,5 & 87,5 & 83,3 & 100  & 70,0 & 93,8 & 83,3 & 83,3 & 58,3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Sécurité.} Sans défense, le LLM répète le mensonge injecté dans \textbf{33,3\,\%} des scénarios d'attaque
+(A comme B) ; avec la défense, \textbf{0\,\%}. La garde a bloqué 4 appels de B, tous justifiés (0 blocage à tort).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{figure-07-Securite.png}
+\caption{Taux d'attaques réussies avec et sans défense (14 scénarios injection et hors périmètre)}
+\label{fig:secu}
+\end{figure}
+
+\textbf{Ablations.} Sans état du dialogue, l'agent classique tombe de 98,3 à 75,0\,\% (il ne résout plus
+« sa note ») ; le LLM direct, lui, ne baisse pas (73,3\,\%), car il relit tout l'historique par attention. Sans
+détection d'intention, le LLM direct passe à 65,0\,\% et perd des refus justifiés (87,5 $\rightarrow$ 75\,\%). Le
+détecteur d'intention atteint un F1 de 0,958 avec 78 phrases et plafonne à 0,982 dès 537 phrases.
+
+\aretenir{La planification fait gagner 15 points au même modèle (68,3 $\rightarrow$ 83,3\,\%) au prix d'une latence
+1,6 fois plus élevée ; la sécurité vient de la garde hors du modèle, pas du prompt.}
+
+% =====================================================================
+\section{Analyse des erreurs}
+\textbf{Classement des causes d'échec du meilleur LLM (B. plan, 11 tours ratés).}
+\begin{enumerate}
+  \item \textbf{Outil manquant (5)} : « Moyenne générale de l'étudiant E014 » ; le plan cherche un étudiant
+        \emph{nommé} « E014 » au lieu d'utiliser l'identifiant et n'appelle jamais \texttt{calculer\_moyenne}.
+  \item \textbf{Absence de clarification (3)} : « Quelle est la moyenne de Yassine ? » ; deux étudiants
+        correspondent, mais le modèle ne pose pas de vraie question.
+  \item \textbf{Hallucination (2)} : sur une réservation de salle déjà occupée, l'agent parle d'un étudiant
+        « Dupont » inexistant au lieu de signaler l'échec.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{figure-05-Pourquoi-ca-echoue.png}
+\caption{Classement des causes d'échec des systèmes}
+\label{fig:causes}
+\end{figure}
+
+\textbf{Fiabilité de l'évaluateur (audit humain).} 30 tours LLM tirés au hasard (15 A, 15 B) ont été jugés à
+l'aveugle puis comparés au verdict automatique.
+
+\begin{minipage}[c]{0.43\textwidth}
+\centering\small
+\captionof{table}{Humain contre évaluateur (30 tours)}
+\label{tab:kappa}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+ & \textbf{Éval. réussi} & \textbf{Éval. échec} \\
+\midrule
+\textbf{Humain réussi} & 13 & \textbf{8} \\
+\textbf{Humain échec}  & \textbf{3} & 6 \\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.54\textwidth}\small
+Accord brut 63,3\,\%, $\kappa = \dfrac{0{,}633-0{,}513}{1-0{,}513} = \mathbf{0{,}25}$ (IC 95\,\% : $-0{,}09$ à
+$0{,}59$), accord \emph{passable}~\cite{cohen,landis}. Le désaccord est \textbf{asymétrique} : l'évaluateur est
+trop sévère dans 8 cas, trop indulgent dans 3.
+\end{minipage}
+
+\smallskip
+Exemple typique : « L'étudiant Karim Benali \textbf{n'a pas été trouvé} » est refusé car le mot-clé attendu est
+« pas trouvé ». C'est une limite vue en cours : une correspondance de chaînes \textbf{sans lemmatisation} rate les
+variantes morphologiques. De même, « Yassine Alaoui ou Yassine Tahiri ? Veuillez préciser. » n'est pas reconnue
+comme question. Inversement, l'évaluateur valide un e-mail envoyé sans vérifier son contenu. Conséquence : les
+scores des LLM, qui répondent en texte libre, sont plutôt \textbf{sous-estimés} ; les grands écarts restent
+valides, pas les écarts de quelques points.
+
+% =====================================================================
+\clearpage
+\section{Plateforme de démonstration SAMS}
+Pour rendre le projet testable sans lire le code, nous avons développé \textbf{SAMS}, une application web (serveur
+Python, interface React) qui réutilise exactement le code et les résultats du notebook. Elle se lance avec
+\texttt{LANCER\_SAMS.bat} puis s'ouvre à l'adresse \texttt{localhost:8765}.
+\begin{itemize}
+  \item \textbf{Bureau des agents} : chaque système est un personnage (Basile la baseline, Clara l'agent classique,
+        Mina le LLM direct, Paola le LLM planifié, Lou le modèle 1.5B, Éva l'évaluatrice, Gaston la garde) ; on
+        rejoue les 60 scénarios TEST et l'on suit chaque agent en direct.
+  \item \textbf{Atelier} : on dialogue soi-même avec un agent et l'on inspecte, pour chaque tour, l'intention
+        détectée, les entités, les appels d'outils et la mémoire du dialogue ; on peut aussi simuler une panne
+        d'outil.
+  \item \textbf{Salle de sécurité} : les 3 documents piégés, l'instruction cachée surlignée, et les résultats avec et
+        sans défense.
+  \item \textbf{Salle d'audit} : l'interface qui a servi à l'audit humain à l'aveugle ; le verdict de l'évaluateur
+        reste caché jusqu'au calcul du kappa.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.495\textwidth}\centering
+  \includegraphics[width=\linewidth]{sams_bureau.png}
+  \caption{Bureau des agents : un personnage par système}
+\end{subfigure}\hfill
+\begin{subfigure}{0.495\textwidth}\centering
+  \includegraphics[width=\linewidth]{sams_atelier.png}
+  \caption{Atelier : « quel Yassine ? », puis « sa note » résolu}
+\end{subfigure}\\[6pt]
+\begin{subfigure}{0.495\textwidth}\centering
+  \includegraphics[width=\linewidth]{sams_securite.png}
+  \caption{Salle de sécurité : documents piégés et résultats}
+\end{subfigure}\hfill
+\begin{subfigure}{0.495\textwidth}\centering
+  \includegraphics[width=\linewidth]{sams_audit.png}
+  \caption{Salle d'audit : jugement humain à l'aveugle}
+\end{subfigure}
+\caption{La plateforme de démonstration SAMS}
+\label{fig:sams}
+\end{figure}
+
+% =====================================================================
+\section{Limites}
+\begin{itemize}
+  \item 60 scénarios écrits par le groupe : intervalles de confiance larges ($\pm$12 points) et pas de vrais
+        utilisateurs. L'agent classique est \textbf{optimiste} sur TEST (règles et scénarios de même origine) : il
+        perd 27,5 points sur les reformulations.
+  \item Les défauts corrigés en v2 ont été repérés sur les erreurs de la v1 ; le réglage s'est fait sur DEV, mais un
+        léger biais optimiste n'est pas exclu.
+  \item Évaluateur par mots-clés ($\kappa=0{,}25$) et audit à un seul annotateur ; un second annotateur et une
+        lemmatisation des réponses sont nécessaires.
+  \item Un seul tirage (décodage glouton) et un seul modèle étudié en détail ; la garde et le filtre reposent sur des
+        expressions régulières, contournables par une formulation inattendue.
+\end{itemize}
+
+\section{Aspects éthiques}
+Les données sont fictives. En production, les notes sont des \textbf{données personnelles} : accès restreint,
+journalisation minimale, aucun envoi hors du domaine de l'école. Les actions à effet de bord (e-mail,
+réservation) devraient être confirmées par un humain. Un document retrouvé fournit une \emph{information}, jamais
+une \emph{autorisation}, et l'assistant doit dire qu'il ne sait pas plutôt que d'inventer.
+
+\section{Conclusion}
+Un LLM ouvert de 3 milliards de paramètres atteint 83,3\,\% de tâches réussies lorsqu'il est encadré par une
+\textbf{planification} et par des \textbf{contrôles hors du modèle}, sans attaque réussie ni refus injustifié. Il
+reste derrière un agent classique bien conçu (98,3\,\%), dont l'avance se réduit sur des formulations inédites.
+La fiabilité d'un agent à outils dépend donc autant de son architecture et de ses garde-fous que du modèle.
+
+% =====================================================================
+\begingroup
+\footnotesize
+\setlength{\itemsep}{0pt}
+\renewcommand{\refname}{\large\color{vertfonce}Références}
+\begin{thebibliography}{99}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}
+\bibitem{jurafsky} D. Jurafsky, J. H. Martin. \emph{Speech and Language Processing}, 3\textsuperscript{e} éd. (en ligne).
+\bibitem{multiwoz} P. Budzianowski et al. MultiWOZ: A Large-Scale Multi-Domain Wizard-of-Oz Dataset for Task-Oriented Dialogue Modelling. \emph{EMNLP}, 2018.
+\bibitem{toolformer} T. Schick et al. Toolformer: Language Models Can Teach Themselves to Use Tools. \emph{NeurIPS}, 2023.
+\bibitem{gorilla} S. G. Patil et al. Gorilla: Large Language Model Connected with Massive APIs. arXiv:2305.15334, 2023.
+\bibitem{qwen} Qwen Team. Qwen2.5 Technical Report. arXiv:2412.15115, 2024.
+\bibitem{react} S. Yao et al. ReAct: Synergizing Reasoning and Acting in Language Models. \emph{ICLR}, 2023.
+\bibitem{planandsolve} L. Wang et al. Plan-and-Solve Prompting. \emph{ACL}, 2023.
+\bibitem{rag} P. Lewis et al. Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. \emph{NeurIPS}, 2020.
+\bibitem{greshake} K. Greshake et al. Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection. \emph{AISec}, 2023.
+\bibitem{cohen} J. Cohen. A Coefficient of Agreement for Nominal Scales. \emph{Educ. Psychol. Meas.}, 20(1), 1960.
+\bibitem{landis} J. R. Landis, G. G. Koch. The Measurement of Observer Agreement for Categorical Data. \emph{Biometrics}, 33(1), 1977.
+\bibitem{mcnemar} Q. McNemar. Note on the sampling error of the difference between correlated proportions. \emph{Psychometrika}, 12(2), 1947.
+\bibitem{efron} B. Efron, R. J. Tibshirani. \emph{An Introduction to the Bootstrap}. Chapman \& Hall, 1993.
+\bibitem{sklearn} F. Pedregosa et al. Scikit-learn: Machine Learning in Python. \emph{JMLR}, 12, 2011.
+\end{thebibliography}
+\endgroup
+
+\end{document}
